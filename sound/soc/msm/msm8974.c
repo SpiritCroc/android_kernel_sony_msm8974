@@ -49,7 +49,9 @@
 static int slim0_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int slim0_tx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
 static int hdmi_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+#ifdef CONFIG_MACH_SONY_SHINANO
 static int mi2s_rx_bit_format = SNDRV_PCM_FORMAT_S16_LE;
+#endif
 
 #define SAMPLING_RATE_48KHZ 48000
 #define SAMPLING_RATE_96KHZ 96000
@@ -61,10 +63,7 @@ static int msm8974_auxpcm_rate = 8000;
 #define LO_2_SPK_AMP	0x4
 #define LO_4_SPK_AMP	0x8
 
-
-#define MSM8974AB_MI2S_MUXSEL
-
-#ifdef MSM8974AB_MI2S_MUXSEL
+#ifdef CONFIG_MACH_SONY_SHINANO
 #define LPAIF_PRI_MODE_MUXSEL (LPAIF_OFFSET + 0x2C000)
 #define LPAIF_SEC_MODE_MUXSEL (LPAIF_OFFSET + 0x2D000)
 #define LPAIF_TER_MODE_MUXSEL (LPAIF_OFFSET + 0x2E000)
@@ -149,6 +148,7 @@ static struct afe_clk_cfg lpass_mi2s_disable = {
 	Q6AFE_LPASS_MODE_BOTH_VALID,
 	0,
 };
+#endif
 
 static void *adsp_state_notifier;
 
@@ -195,11 +195,23 @@ static struct wcd9xxx_mbhc_config mbhc_cfg = {
 	.mclk_rate = TAIKO_EXT_CLK_RATE,
 	.gpio = 0,
 	.gpio_irq = 0,
-	.gpio_level_insert = 0,
+#ifdef CONFIG_MACH_SONY_SHINANO
+ 	.gpio_level_insert = 0,
+#else
+  	.gpio_level_insert = 1,
+#endif
 	.detect_extn_cable = true,
 	.micbias_enable_flags = 1 << MBHC_MICBIAS_ENABLE_THRESHOLD_HEADSET,
 	.insert_detect = true,
 	.swap_gnd_mic = NULL,
+#ifdef CONFIG_MACH_SONY_SHINANO
+ 	.cs_enable_flags = 0,
+#else
+  	.cs_enable_flags = (1 << MBHC_CS_ENABLE_POLLING |
+  			    1 << MBHC_CS_ENABLE_INSERTION |
+  			    1 << MBHC_CS_ENABLE_REMOVAL |
+  			    1 << MBHC_CS_ENABLE_DET_ANC),
+#endif
 	.cs_enable_flags = 0,
 	.do_recalibration = true,
 	.use_vddio_meas = true,
@@ -752,11 +764,21 @@ static int msm8974_mclk_event(struct snd_soc_dapm_widget *w,
 
 	return 0;
 }
-
-static const struct snd_soc_dapm_widget shinano_msm8974_dapm_widgets[] = {
+#if defined (CONFIG_MACH_SONY_SHINANO) || defined (CONFIG_MACH_SONY_RHINE)
+static const struct snd_soc_dapm_widget msm8974_dapm_widgets[] = {
 
 	SND_SOC_DAPM_SUPPLY("MCLK",  SND_SOC_NOPM, 0, 0,
 	msm8974_mclk_event, SND_SOC_DAPM_PRE_PMU | SND_SOC_DAPM_POST_PMD),
+
+#ifdef CONFIG_MACH_SONY_RHINE
+ 	SND_SOC_DAPM_SPK("Lineout_1 amp", msm_ext_spkramp_event),
+ 	SND_SOC_DAPM_SPK("Lineout_3 amp", msm_ext_spkramp_event),
+ 
+ 	SND_SOC_DAPM_SPK("Lineout_2 amp", msm_ext_spkramp_event),
+ 	SND_SOC_DAPM_SPK("Lineout_4 amp", msm_ext_spkramp_event),
+ 	SND_SOC_DAPM_SPK("SPK_ultrasound amp",
+ 					 msm_ext_spkramp_ultrasound_event),
+#endif
 
 	SND_SOC_DAPM_SPK("Ext Spk Bottom Pos", msm_ext_spkramp_event),
 	SND_SOC_DAPM_SPK("Ext Spk Bottom Neg", msm_ext_spkramp_event),
@@ -772,7 +794,7 @@ static const struct snd_soc_dapm_widget shinano_msm8974_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("ANCLeft Headset Mic", NULL),
 
 };
-
+#else
 static const struct snd_soc_dapm_widget msm8974_dapm_widgets[] = {
 
 	SND_SOC_DAPM_SUPPLY("MCLK",  SND_SOC_NOPM, 0, 0,
@@ -801,6 +823,7 @@ static const struct snd_soc_dapm_widget msm8974_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Digital Mic5", NULL),
 	SND_SOC_DAPM_MIC("Digital Mic6", NULL),
 };
+#endif
 
 static const char *const spk_function[] = {"Off", "On"};
 static const char *const slim0_rx_ch_text[] = {"One", "Two"};
@@ -1375,6 +1398,7 @@ static struct snd_soc_ops msm_sec_auxpcm_be_ops = {
 	.shutdown = msm_sec_auxpcm_shutdown,
 };
 
+#ifdef CONFIG_MACH_SONY_SHINANO
 static int msm8974_configure_quat_mi2s_gpio(void)
 {
 	int ret;
@@ -1461,6 +1485,7 @@ static struct snd_soc_ops msm8974_mi2s_be_ops = {
 	.startup = msm8974_mi2s_startup,
 	.shutdown = msm8974_mi2s_shutdown
 };
+#endif
 
 static int msm_slim_0_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					    struct snd_pcm_hw_params *params)
@@ -1551,6 +1576,7 @@ static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 	struct snd_interval *rate = hw_param_interval(params,
 					SNDRV_PCM_HW_PARAM_RATE);
 
+#ifdef CONFIG_MACH_SONY_SHINANO	
 	struct snd_interval *channels =
 	    hw_param_interval(params, SNDRV_PCM_HW_PARAM_CHANNELS);
 
@@ -1559,7 +1585,10 @@ static int msm_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 				   mi2s_rx_bit_format);
 	rate->min = rate->max = 48000;
 	channels->min = channels->max = 2;
-
+#else
+ 	pr_debug("%s()\n", __func__);
+  	rate->min = rate->max = 48000;
+#endif
 	return 0;
 }
 
@@ -1764,8 +1793,8 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 		return err;
 	}
 
-	snd_soc_dapm_new_controls(dapm, shinano_msm8974_dapm_widgets,
-				ARRAY_SIZE(shinano_msm8974_dapm_widgets));
+	snd_soc_dapm_new_controls(dapm, msm8974_dapm_widgets,
+				ARRAY_SIZE(msm8974_dapm_widgets));
 
 	snd_soc_dapm_enable_pin(dapm, "Lineout_1 amp");
 	snd_soc_dapm_enable_pin(dapm, "Lineout_3 amp");
@@ -2432,6 +2461,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA6,
 	},
+#ifdef CONFIG_MACH_SONY_SHINANO
 	/* Voice Stub For Loopback */
 	{
 		.name = "Voice Stub",
@@ -2447,6 +2477,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 		.codec_name = "snd-soc-dummy",
 	},
+#endif
 	{
 		.name = "Listen 2 Audio Service",
 		.stream_name = "Listen 2 Audio Service",
@@ -2895,6 +2926,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 	},
+#ifdef CONFIG_MACH_SONY_SHINANO
 	/* MI2S Playback BACK END DAI Link */
 	{
 		.name = LPASS_BE_QUAT_MI2S_RX,
@@ -2921,6 +2953,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ops = &msm8974_mi2s_be_ops,
 	},
+#endif
 	/* Incall Music 2 BACK END DAI Link */
 	{
 		.name = LPASS_BE_VOICE2_PLAYBACK_TX,
@@ -2934,6 +2967,7 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.be_hw_params_fixup = msm_be_hw_params_fixup,
 		.ignore_suspend = 1,
 	},
+#ifdef CONFIG_MACH_SONY_SHINANO
 	/* 61 : High-Res Audio Playback */
 	{
 		.name = "MSM8974 Media9",
@@ -2950,6 +2984,24 @@ static struct snd_soc_dai_link msm8974_common_dai_links[] = {
 		.ignore_pmdown_time = 1,
 		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA9,
 	},
+#endif
+#ifdef CONFIG_MACH_SONY_RHINE
+  	{
+  		.name = "MSM8974 Media9",
+  		.stream_name = "MultiMedia9",
+ 		.cpu_dai_name   = "MultiMedia9",
+ 		.platform_name  = "msm-pcm-dsp.0",
+ 		.dynamic = 1,
+ 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
+ 				SND_SOC_DPCM_TRIGGER_POST},
+ 		.codec_dai_name = "snd-soc-dummy-dai",
+ 		.codec_name = "snd-soc-dummy",
+ 		.ignore_suspend = 1,
+ 		/* this dainlink has playback support */
+  		.ignore_pmdown_time = 1,
+  		.be_id = MSM_FRONTEND_DAI_MULTIMEDIA9,
+  	},
+#endif
 	/* 62 : High-Res Audio DSEE Mode */
 	{
 		.name = "MSM8974 Media10",
